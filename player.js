@@ -616,6 +616,28 @@ if (savedVolume !== null) {
 }
 updateVolumeIcon();
 
+// Load and display version info
+async function loadVersionInfo() {
+    try {
+        const response = await fetch('/api/version');
+        const data = await response.json();
+
+        if (data.version) {
+            const versionElement = document.querySelector('.version-info');
+            if (versionElement) {
+                versionElement.textContent = `v${data.version}`;
+                versionElement.title = `${data.name} v${data.version}`;
+            }
+        }
+    } catch (error) {
+        console.log('Could not load version info:', error);
+        // Keep the static version if API fails
+    }
+}
+
+// Load version on startup
+loadVersionInfo();
+
 // Event listeners
 playButton.addEventListener('click', togglePlay);
 prevButton.addEventListener('click', playPrev);

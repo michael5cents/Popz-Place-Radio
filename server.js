@@ -3,6 +3,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 
 dotenv.config();
 
@@ -28,13 +29,13 @@ app.get('/api/getsasurl/:filename', async (req, res) => {
         const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
         const containerClient = blobServiceClient.getContainerClient(containerName);
         const blobClient = containerClient.getBlobClient(req.params.filename);
-        
+
         const sasUrl = await blobClient.generateSasUrl({
             permissions: 'r',
             startsOn: new Date(),
             expiresOn: new Date(Date.now() + 30 * 60000)
         });
-        
+
         res.json({ url: sasUrl });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -46,17 +47,32 @@ app.get('/api/tracks', async (req, res) => {
     try {
         const containerClient = blobServiceClient.getContainerClient(containerName);
         const tracks = [];
-        
+
         for await (const blob of containerClient.listBlobsFlat()) {
             if (blob.name.match(/\.(mp3|flac|wav|m4a)$/i)) {
                 tracks.push(blob.name);
             }
         }
-        
+
         res.json({ tracks });
     } catch (error) {
         console.error('Error listing tracks:', error);
         res.status(500).json({ error: 'Failed to list tracks' });
+    }
+});
+
+// Get version info
+app.get('/api/version', (req, res) => {
+    try {
+        const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
+        res.json({
+            version: packageJson.version,
+            name: packageJson.name,
+            description: packageJson.description
+        });
+    } catch (error) {
+        console.error('Error reading version:', error);
+        res.status(500).json({ error: 'Failed to get version info' });
     }
 });
 
