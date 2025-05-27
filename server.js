@@ -23,12 +23,14 @@ const connectionString = process.env.VITE_AZURE_STORAGE_CONNECTION_STRING;
 const containerName = process.env.VITE_AZURE_STORAGE_CONTAINER_NAME;
 const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
 
-// Serve static files from root directory (for development)
-app.use(express.static(__dirname));
+// Serve static files from dist directory (for production) or root (for development)
+const staticPath = process.env.NODE_ENV === 'production' ? join(__dirname, 'dist') : __dirname;
+app.use(express.static(staticPath));
 
 // Serve index.html for all routes except /api
 app.get(/^(?!\/api\/).+/, (req, res) => {
-    res.sendFile(join(__dirname, 'index.html'));
+    const indexPath = process.env.NODE_ENV === 'production' ? join(__dirname, 'dist', 'index.html') : join(__dirname, 'index.html');
+    res.sendFile(indexPath);
 });
 
 // Get SAS URL for a specific file
