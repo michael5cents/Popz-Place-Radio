@@ -18,21 +18,21 @@
             font-family: 'Roboto', sans-serif;
             margin: 0;
             padding: 0;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
         }
 
         .banner {
-            margin-bottom: 40px;
+            margin-bottom: 15px;
             text-align: center;
         }
 
         .neon-text {
             font-family: 'Dancing Script', cursive;
-            font-size: 4em;
+            font-size: 2.8em;
             color: #fff;
             text-shadow: 0 0 7px #fff,
                        0 0 10px #fff,
@@ -43,6 +43,7 @@
                        0 0 102px #bc13fe,
                        0 0 151px #bc13fe;
             animation: neon 1.5s ease-in-out infinite alternate;
+            margin: 0;
         }
 
         @keyframes neon {
@@ -342,12 +343,82 @@
             border: none;
         }
 
-        /* Samsung Z Fold3 optimizations */
-        @media (max-width: 768px) {
+        /* Samsung Z Fold3 folded position - horizontal layout */
+        @media (max-width: 768px) and (orientation: landscape) {
             body {
-                padding: 10px;
+                padding: 5px;
+                flex-direction: row;
+                gap: 15px;
             }
 
+            .banner {
+                margin-bottom: 0;
+                margin-right: 15px;
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                min-width: 200px;
+            }
+
+            .neon-text {
+                font-size: 1.8em;
+                margin: 0;
+                writing-mode: horizontal-tb;
+            }
+
+            .player {
+                width: auto;
+                flex: 1;
+                padding: 10px;
+                max-width: none;
+                height: fit-content;
+                max-height: 90vh;
+                overflow: hidden;
+            }
+
+            .progress {
+                margin: 10px 0;
+            }
+
+            .controls {
+                grid-template-columns: repeat(6, 1fr);
+                gap: 8px;
+                margin: 8px 0;
+            }
+
+            .controls-row-2 {
+                display: none; /* Hide secondary controls to save space */
+            }
+
+            .control-button {
+                width: 35px;
+                height: 35px;
+                font-size: 0.8em;
+                min-width: 35px;
+                min-height: 35px;
+            }
+
+            .volume-control {
+                grid-column: span 6;
+                margin-top: 5px;
+                gap: 8px;
+            }
+
+            .volume-slider-container {
+                width: 100px;
+            }
+
+            #status {
+                font-size: 0.8em;
+                margin-top: 8px;
+                text-align: center;
+            }
+        }
+
+        /* Samsung Z Fold3 portrait fallback */
+        @media (max-width: 768px) and (orientation: portrait) {
             .neon-text {
                 font-size: 2.2em;
                 margin-bottom: 10px;
@@ -471,7 +542,7 @@
             <div class="progress-bar" id="progress-bar"></div>
         </div>
 
-        <!-- Main playback controls (4 buttons per row) -->
+        <!-- Main playback controls (6 buttons for Z Fold3 landscape) -->
         <div class="controls">
             <button class="control-button" id="prev-button" title="Previous">
                 <i class="fas fa-backward"></i>
@@ -482,13 +553,6 @@
             <button class="control-button" id="next-button" title="Next">
                 <i class="fas fa-forward"></i>
             </button>
-            <button class="control-button" id="stop-button" title="Stop">
-                <i class="fas fa-stop"></i>
-            </button>
-        </div>
-
-        <!-- Secondary controls (3 buttons per row) -->
-        <div class="controls-row-2">
             <button class="control-button" id="shuffle-button" title="Shuffle">
                 <i class="fas fa-random"></i>
             </button>
@@ -500,16 +564,23 @@
             </button>
         </div>
 
-        <!-- Tertiary controls (3 buttons per row) -->
+        <!-- Secondary controls (hidden on Z Fold3 landscape) -->
         <div class="controls-row-2">
+            <button class="control-button" id="stop-button" title="Stop">
+                <i class="fas fa-stop"></i>
+            </button>
             <button class="control-button" id="favorites-list-button" title="Show Favorites">
                 <i class="fas fa-list"></i>
             </button>
-            <button class="control-button" id="play-favorites-button" title="Play Favorites Only">
-                <i class="fas fa-star"></i>
-            </button>
             <button class="control-button" id="version-button" title="Show Version">
                 <i class="fas fa-info-circle"></i>
+            </button>
+        </div>
+
+        <!-- Tertiary controls (hidden on Z Fold3 landscape) -->
+        <div class="controls-row-2">
+            <button class="control-button" id="play-favorites-button" title="Play Favorites Only">
+                <i class="fas fa-star"></i>
             </button>
         </div>
 
