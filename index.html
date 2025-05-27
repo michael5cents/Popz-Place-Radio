@@ -2,6 +2,12 @@
 <html>
 <head>
     <title>Popz Place Radio</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#bc13fe">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -276,18 +282,105 @@
             border-left: 3px solid #bc13fe;
             background: rgba(188, 19, 254, 0.15);
         }
+
+        /* Volume slider styling */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .volume-slider-container {
+            width: 100px;
+        }
+
+        #volume-slider {
+            width: 100%;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            background: #bc13fe;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #volume-slider::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            background: #bc13fe;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .neon-text {
+                font-size: 2.5em;
+            }
+
+            .player {
+                width: 95%;
+                padding: 20px;
+            }
+
+            .controls {
+                gap: 15px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .control-button {
+                width: 45px;
+                height: 45px;
+                font-size: 0.9em;
+            }
+
+            .volume-control {
+                width: 100%;
+                justify-content: center;
+                margin-top: 10px;
+            }
+
+            .volume-slider-container {
+                width: 150px;
+            }
+        }
+
+        /* Prevent text selection on mobile */
+        .player, .controls, .control-button {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Improve touch targets */
+        .control-button {
+            min-width: 44px;
+            min-height: 44px;
+        }
     </style>
 </head>
 <body>
     <div class="banner">
         <h1 class="neon-text">Popz Place Radio</h1>
     </div>
-    
+
     <div class="player">
         <div class="progress">
             <div class="progress-bar" id="progress-bar"></div>
         </div>
-        
+
         <div class="controls">
             <button class="control-button" id="prev-button" title="Previous">
                 <i class="fas fa-backward"></i>
@@ -325,10 +418,10 @@
                 </div>
             </div>
         </div>
-        
+
         <div id="status">Click play to start</div>
     </div>
-    
+
     <div class="favorites-modal" id="favorites-modal">
         <button class="close-button" id="close-favorites">
             <i class="fas fa-times"></i>

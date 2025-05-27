@@ -29,6 +29,70 @@ let favorites = new Set(JSON.parse(localStorage.getItem('favorites') || '[]'));
 let playingFavorites = false;
 let shuffleMode = false;
 
+// Mobile and wake lock support
+let wakeLock = null;
+let shuffleHistory = [];
+let maxRetries = 3;
+let currentRetries = 0;
+
+// Wake Lock API support for mobile devices
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake lock acquired');
+
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake lock released');
+            });
+        }
+    } catch (err) {
+        console.log('Wake lock not supported or failed:', err);
+    }
+}
+
+async function releaseWakeLock() {
+    if (wakeLock) {
+        try {
+            await wakeLock.release();
+            wakeLock = null;
+            console.log('Wake lock manually released');
+        } catch (err) {
+            console.log('Error releasing wake lock:', err);
+        }
+    }
+}
+
+// Handle visibility changes (mobile sleep mode)
+function handleVisibilityChange() {
+    if (document.hidden) {
+        // Page is hidden (mobile going to sleep)
+        console.log('Page hidden - maintaining audio session');
+        if (isPlaying && player.src) {
+            // Ensure audio continues playing
+            player.play().catch(err => {
+                console.log('Error maintaining playback:', err);
+            });
+        }
+    } else {
+        // Page is visible again
+        console.log('Page visible - checking audio state');
+        if (isPlaying && player.paused) {
+            // Try to resume if we were supposed to be playing
+            player.play().catch(err => {
+                console.log('Error resuming playback:', err);
+                status.textContent = 'Playback interrupted - tap play to resume';
+                isPlaying = false;
+                updatePlayIcon();
+            });
+        }
+        // Re-acquire wake lock if needed
+        if (isPlaying) {
+            requestWakeLock();
+        }
+    }
+}
+
 // Update shuffle button appearance
 function updateShuffleIcon() {
     const icon = shuffleButton.querySelector('i');
@@ -51,29 +115,135 @@ function shuffle(array) {
     return newArray;
 }
 
+// Get next shuffle track with history to avoid repeats
+function getNextShuffleTrack() {
+    if (tracks.length === 0) return null;
+
+    // If we've played all tracks, reset history
+    if (shuffleHistory.length >= tracks.length) {
+        shuffleHistory = [];
+    }
+
+    // Get tracks not in recent history
+    let availableTracks = tracks.filter(track =>
+        !shuffleHistory.includes(track) && track !== currentTrack
+    );
+
+    // If no available tracks (shouldn't happen), use all tracks except current
+    if (availableTracks.length === 0) {
+        availableTracks = tracks.filter(track => track !== currentTrack);
+        shuffleHistory = []; // Reset history
+    }
+
+    // If still no tracks, just use the first track
+    if (availableTracks.length === 0) {
+        return tracks[0];
+    }
+
+    // Pick random track from available
+    const randomIndex = Math.floor(Math.random() * availableTracks.length);
+    const selectedTrack = availableTracks[randomIndex];
+
+    // Add to history
+    shuffleHistory.push(selectedTrack);
+
+    // Keep history manageable (max 50% of tracks)
+    const maxHistory = Math.max(1, Math.floor(tracks.length / 2));
+    if (shuffleHistory.length > maxHistory) {
+        shuffleHistory = shuffleHistory.slice(-maxHistory);
+    }
+
+    return selectedTrack;
+}
+
 // Update play button icon
 function updatePlayIcon() {
     const icon = playButton.querySelector('i');
     icon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
 }
 
-// Load and play a track
-async function playTrack(filename) {
+// Load and play a track with retry logic
+async function playTrack(filename, retryCount = 0) {
     try {
+        status.textContent = `Loading ${filename}...`;
+
         const response = await fetch(`/api/getsasurl/${encodeURIComponent(filename)}`);
         const data = await response.json();
-        
+
         if (data.error) throw new Error(data.error);
-        
+
+        // Set up the audio source
         player.src = data.url;
+
+        // Wait for the audio to be ready
+        await new Promise((resolve, reject) => {
+            const onCanPlay = () => {
+                player.removeEventListener('canplay', onCanPlay);
+                player.removeEventListener('error', onError);
+                resolve();
+            };
+
+            const onError = (e) => {
+                player.removeEventListener('canplay', onCanPlay);
+                player.removeEventListener('error', onError);
+                reject(new Error(`Audio load error: ${e.message || 'Unknown error'}`));
+            };
+
+            player.addEventListener('canplay', onCanPlay);
+            player.addEventListener('error', onError);
+
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                player.removeEventListener('canplay', onCanPlay);
+                player.removeEventListener('error', onError);
+                reject(new Error('Audio load timeout'));
+            }, 10000);
+        });
+
+        // Play the audio
         await player.play();
+
+        // Update state
         currentTrack = filename;
         isPlaying = true;
+        currentRetries = 0; // Reset retry counter on success
         updatePlayIcon();
         updateFavoriteIcon();
         status.textContent = filename;
+
+        // Request wake lock for mobile
+        if (isPlaying) {
+            requestWakeLock();
+        }
+
+        console.log(`Successfully playing: ${filename}`);
+
     } catch (error) {
-        throw new Error('Failed to play: ' + error.message);
+        console.error(`Error playing ${filename}:`, error);
+
+        // Retry logic
+        if (retryCount < maxRetries) {
+            console.log(`Retrying ${filename} (attempt ${retryCount + 1}/${maxRetries})`);
+            status.textContent = `Retrying ${filename}... (${retryCount + 1}/${maxRetries})`;
+
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            return await playTrack(filename, retryCount + 1);
+        } else {
+            // Max retries reached
+            isPlaying = false;
+            updatePlayIcon();
+            status.textContent = `Failed to play ${filename}: ${error.message}`;
+
+            // In shuffle mode, try the next track
+            if (shuffleMode && tracks.length > 1) {
+                console.log('Shuffle mode: trying next track after failure');
+                setTimeout(() => playNext(), 2000);
+            }
+
+            throw error;
+        }
     }
 }
 
@@ -84,7 +254,7 @@ async function loadTracks(favoritesOnly = false) {
         const response = await fetch('/api/tracks');
         const data = await response.json();
         if (data.error) throw new Error(data.error);
-        
+
         if (favoritesOnly) {
             tracks = data.tracks.filter(track => favorites.has(track));
             if (tracks.length === 0) {
@@ -93,7 +263,7 @@ async function loadTracks(favoritesOnly = false) {
         } else {
             tracks = data.tracks;
         }
-        
+
         playingFavorites = favoritesOnly;
         updatePlayFavoritesIcon();
         updateTracksList(); // Update the tracks list whenever tracks are loaded
@@ -133,15 +303,15 @@ function updateTracksList() {
 async function togglePlayFavorites() {
     try {
         const switchToFavorites = !playingFavorites;
-        
+
         // Load appropriate track list
         await loadTracks(switchToFavorites);
-        
+
         // If currently playing, switch to first track of new list
         if (isPlaying) {
             await playTrack(tracks[0]);
         }
-        
+
         status.textContent = switchToFavorites ? 'Playing favorites only' : 'Playing all tracks';
     } catch (error) {
         status.textContent = error.message;
@@ -178,51 +348,93 @@ async function togglePlay() {
     }
 }
 
-// Play next track
+// Play next track with improved error handling
 async function playNext() {
-    if (!tracks.length) return;
-    
-    if (shuffleMode) {
-        // Play a random track that's not the current one
-        let availableTracks = tracks.filter(track => track !== currentTrack);
-        if (availableTracks.length > 0) {
-            const randomIndex = Math.floor(Math.random() * availableTracks.length);
-            await playTrack(availableTracks[randomIndex]);
-        } else {
-            await playTrack(tracks[0]);
-        }
-    } else {
-        const currentIndex = tracks.indexOf(currentTrack);
-        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tracks.length;
-        await playTrack(tracks[nextIndex]);
+    if (!tracks.length) {
+        console.log('No tracks available for playNext');
+        status.textContent = 'No tracks available';
+        return;
     }
-    
-    updateFavoriteIcon();
+
+    try {
+        let nextTrack;
+
+        if (shuffleMode) {
+            nextTrack = getNextShuffleTrack();
+            if (!nextTrack) {
+                console.log('No shuffle track available, using first track');
+                nextTrack = tracks[0];
+            }
+        } else {
+            const currentIndex = tracks.indexOf(currentTrack);
+            const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tracks.length;
+            nextTrack = tracks[nextIndex];
+        }
+
+        console.log(`Playing next track: ${nextTrack}`);
+        await playTrack(nextTrack);
+        updateFavoriteIcon();
+
+    } catch (error) {
+        console.error('Error in playNext:', error);
+        status.textContent = `Error playing next track: ${error.message}`;
+
+        // If we're in shuffle mode and there was an error, try another track
+        if (shuffleMode && tracks.length > 1) {
+            console.log('Shuffle mode: trying alternative track after error');
+            setTimeout(() => {
+                const alternativeTrack = getNextShuffleTrack();
+                if (alternativeTrack && alternativeTrack !== currentTrack) {
+                    playTrack(alternativeTrack).catch(err => {
+                        console.error('Alternative track also failed:', err);
+                        isPlaying = false;
+                        updatePlayIcon();
+                    });
+                }
+            }, 2000);
+        } else {
+            isPlaying = false;
+            updatePlayIcon();
+        }
+    }
 }
 
-// Play previous track
+// Play previous track with improved error handling
 async function playPrev() {
-    if (!tracks.length) return;
-    
-    if (shuffleMode) {
-        // Play a random track that's not the current one
-        let availableTracks = tracks.filter(track => track !== currentTrack);
-        if (availableTracks.length > 0) {
-            const randomIndex = Math.floor(Math.random() * availableTracks.length);
-            await playTrack(availableTracks[randomIndex]);
-        } else {
-            await playTrack(tracks[0]);
-        }
-    } else {
-        const currentIndex = tracks.indexOf(currentTrack);
-        const prevIndex = currentIndex === -1 ? tracks.length - 1 : (currentIndex - 1 + tracks.length) % tracks.length;
-        await playTrack(tracks[prevIndex]);
+    if (!tracks.length) {
+        console.log('No tracks available for playPrev');
+        status.textContent = 'No tracks available';
+        return;
     }
-    
-    updateFavoriteIcon();
+
+    try {
+        let prevTrack;
+
+        if (shuffleMode) {
+            prevTrack = getNextShuffleTrack(); // In shuffle, prev is just another random track
+            if (!prevTrack) {
+                console.log('No shuffle track available, using last track');
+                prevTrack = tracks[tracks.length - 1];
+            }
+        } else {
+            const currentIndex = tracks.indexOf(currentTrack);
+            const prevIndex = currentIndex === -1 ? tracks.length - 1 : (currentIndex - 1 + tracks.length) % tracks.length;
+            prevTrack = tracks[prevIndex];
+        }
+
+        console.log(`Playing previous track: ${prevTrack}`);
+        await playTrack(prevTrack);
+        updateFavoriteIcon();
+
+    } catch (error) {
+        console.error('Error in playPrev:', error);
+        status.textContent = `Error playing previous track: ${error.message}`;
+        isPlaying = false;
+        updatePlayIcon();
+    }
 }
 
-// Shuffle playlist
+// Shuffle playlist with improved logic
 async function shufflePlaylist() {
     if (!tracks.length) {
         status.textContent = 'No tracks to shuffle';
@@ -233,20 +445,22 @@ async function shufflePlaylist() {
     updateShuffleIcon();
 
     if (shuffleMode) {
-        tracks = shuffle(tracks);
+        // Reset shuffle history when enabling shuffle
+        shuffleHistory = [];
+        status.textContent = 'Shuffle mode enabled';
+
+        // If currently playing, add current track to history
         if (currentTrack) {
-            const currentIndex = tracks.indexOf(currentTrack);
-            if (currentIndex !== -1) {
-                const nextTrack = tracks[(currentIndex + 1) % tracks.length];
-                await playTrack(nextTrack);
-            }
-        } else {
-            // If no track is playing, start with the first track
-            await playTrack(tracks[0]);
+            shuffleHistory.push(currentTrack);
         }
+
+        console.log('Shuffle mode enabled');
     } else {
         // Restore original order by reloading tracks
+        shuffleHistory = [];
         await loadTracks(playingFavorites);
+        status.textContent = 'Shuffle mode disabled';
+        console.log('Shuffle mode disabled');
     }
 }
 
@@ -257,6 +471,9 @@ function stopPlayback() {
     isPlaying = false;
     updatePlayIcon();
     status.textContent = 'Stopped';
+
+    // Release wake lock when stopping
+    releaseWakeLock();
 }
 
 // Update progress bar
@@ -283,7 +500,7 @@ function updateFavoriteIcon() {
 // Toggle favorite status of current track
 function toggleFavorite() {
     if (!currentTrack) return;
-    
+
     if (favorites.has(currentTrack)) {
         favorites.delete(currentTrack);
         if (playingFavorites && favorites.size === 0) {
@@ -293,7 +510,7 @@ function toggleFavorite() {
     } else {
         favorites.add(currentTrack);
     }
-    
+
     localStorage.setItem('favorites', JSON.stringify([...favorites]));
     updateFavoriteIcon();
 }
@@ -301,7 +518,7 @@ function toggleFavorite() {
 // Show favorites modal
 function showFavorites() {
     favoritesList.innerHTML = '';
-    
+
     if (favorites.size === 0) {
         const li = document.createElement('li');
         li.textContent = 'No favorites yet';
@@ -309,11 +526,11 @@ function showFavorites() {
     } else {
         [...favorites].forEach(track => {
             const li = document.createElement('li');
-            
+
             const nameSpan = document.createElement('span');
             nameSpan.textContent = track;
             li.appendChild(nameSpan);
-            
+
             const removeButton = document.createElement('button');
             removeButton.innerHTML = '<i class="fas fa-times"></i>';
             removeButton.onclick = () => {
@@ -326,18 +543,18 @@ function showFavorites() {
                 }
             };
             li.appendChild(removeButton);
-            
+
             li.ondblclick = () => {
                 favoritesModal.style.display = 'none';
                 if (tracks.includes(track)) {
                     playTrack(track);
                 }
             };
-            
+
             favoritesList.appendChild(li);
         });
     }
-    
+
     favoritesModal.style.display = 'block';
 }
 
@@ -347,7 +564,7 @@ async function playFavorites() {
         status.textContent = 'No favorites to play';
         return;
     }
-    
+
     tracks = [...favorites];
     if (isPlaying) {
         await playTrack(tracks[0]);
@@ -431,15 +648,71 @@ window.addEventListener('click', (e) => {
     }
 });
 
-// Audio events
-player.addEventListener('ended', playNext);
+// Enhanced audio event handlers
+player.addEventListener('ended', () => {
+    console.log('Track ended, playing next');
+    playNext();
+});
+
 player.addEventListener('timeupdate', updateProgress);
-player.addEventListener('error', () => {
+
+player.addEventListener('error', (e) => {
+    console.error('Audio error:', e);
     status.textContent = 'Error playing audio';
     isPlaying = false;
     updatePlayIcon();
+    releaseWakeLock();
 });
 
-// No longer need this since we update when track changes
-// player.addEventListener('play', updateFavoriteIcon);
+player.addEventListener('pause', () => {
+    console.log('Audio paused');
+    if (isPlaying) {
+        // Only update if we think we should be playing (not user-initiated pause)
+        isPlaying = false;
+        updatePlayIcon();
+    }
+});
+
+player.addEventListener('play', () => {
+    console.log('Audio playing');
+    isPlaying = true;
+    updatePlayIcon();
+    requestWakeLock();
+});
+
+// Handle audio interruptions (calls, notifications, etc.)
+player.addEventListener('stalled', () => {
+    console.log('Audio stalled');
+    status.textContent = 'Audio stalled - buffering...';
+});
+
+player.addEventListener('waiting', () => {
+    console.log('Audio waiting');
+    status.textContent = 'Buffering...';
+});
+
+player.addEventListener('canplaythrough', () => {
+    console.log('Audio can play through');
+    if (currentTrack && status.textContent.includes('Buffering')) {
+        status.textContent = currentTrack;
+    }
+});
+
+// Mobile-specific event handlers
+document.addEventListener('visibilitychange', handleVisibilityChange);
+
+// Handle page focus/blur for mobile
+window.addEventListener('focus', () => {
+    console.log('Window focused');
+    if (isPlaying && player.paused) {
+        player.play().catch(err => {
+            console.log('Error resuming on focus:', err);
+        });
+    }
+});
+
+window.addEventListener('blur', () => {
+    console.log('Window blurred');
+    // Don't pause on blur - let it continue playing
+});
 
