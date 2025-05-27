@@ -20,6 +20,7 @@ const showTracksButton = document.getElementById('show-tracks-button');
 const tracksModal = document.getElementById('tracks-modal');
 const closeTracksButton = document.getElementById('close-tracks');
 const tracksList = document.getElementById('tracks-list');
+const versionButton = document.getElementById('version-button');
 
 // Track list and current track
 let tracks = [];
@@ -616,27 +617,30 @@ if (savedVolume !== null) {
 }
 updateVolumeIcon();
 
-// Load and display version info
-async function loadVersionInfo() {
+// Show version info
+async function showVersionInfo() {
     try {
         const response = await fetch('/api/version');
         const data = await response.json();
 
         if (data.version) {
-            const versionElement = document.querySelector('.version-info');
-            if (versionElement) {
-                versionElement.textContent = `v${data.version}`;
-                versionElement.title = `${data.name} v${data.version}`;
-            }
+            status.textContent = `${data.name} v${data.version} - ${data.description}`;
+            setTimeout(() => {
+                if (status.textContent.includes(data.version)) {
+                    status.textContent = currentTrack || 'Click play to start';
+                }
+            }, 3000);
         }
     } catch (error) {
         console.log('Could not load version info:', error);
-        // Keep the static version if API fails
+        status.textContent = 'Popz Place Radio v1.1.0 - Mobile & Shuffle Fixes';
+        setTimeout(() => {
+            if (status.textContent.includes('v1.1.0')) {
+                status.textContent = currentTrack || 'Click play to start';
+            }
+        }, 3000);
     }
 }
-
-// Load version on startup
-loadVersionInfo();
 
 // Event listeners
 playButton.addEventListener('click', togglePlay);
@@ -655,6 +659,7 @@ volumeButton.addEventListener('click', toggleMute);
 volumeSlider.addEventListener('input', handleVolumeChange);
 showTracksButton.addEventListener('click', showAllTracks);
 closeTracksButton.addEventListener('click', () => tracksModal.style.display = 'none');
+versionButton.addEventListener('click', showVersionInfo);
 
 // Save volume setting
 volumeSlider.addEventListener('change', () => {
@@ -736,5 +741,32 @@ window.addEventListener('focus', () => {
 window.addEventListener('blur', () => {
     console.log('Window blurred');
     // Don't pause on blur - let it continue playing
+});
+
+// Force landscape orientation on mobile
+function forceLandscapeOrientation() {
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(err => {
+            console.log('Could not lock orientation:', err);
+        });
+    }
+}
+
+// Check if device supports orientation lock and apply it
+if ('orientation' in screen) {
+    forceLandscapeOrientation();
+}
+
+// Handle orientation changes
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        if (window.innerHeight > window.innerWidth && window.innerWidth < 768) {
+            // Portrait mode on mobile - show rotation message
+            console.log('Portrait mode detected - encouraging landscape');
+        } else {
+            // Landscape mode - good to go
+            console.log('Landscape mode - optimal layout');
+        }
+    }, 100);
 });
 
