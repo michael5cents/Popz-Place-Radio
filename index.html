@@ -21,18 +21,19 @@
             height: 100vh;
             overflow: hidden;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
         }
 
         .banner {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             text-align: center;
         }
 
         .neon-text {
             font-family: 'Dancing Script', cursive;
-            font-size: 2.8em;
+            font-size: 2.2em;
             color: #fff;
             text-shadow: 0 0 7px #fff,
                        0 0 10px #fff,
@@ -71,38 +72,61 @@
 
         .player {
             background: rgba(255, 255, 255, 0.1);
-            padding: 40px;
-            border-radius: 20px;
+            padding: 20px;
+            border-radius: 15px;
             box-shadow: 0 0 20px rgba(188, 19, 254, 0.2);
             backdrop-filter: blur(10px);
-            width: 85%;
-            max-width: 550px;
+            width: 95%;
+            max-width: 600px;
             position: relative;
+            height: fit-content;
         }
 
         .controls {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 15px;
-            margin: 20px 0;
+            margin: 15px 0;
             max-width: 100%;
         }
 
-        .controls-row-2 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+        .controls-extended {
+            display: none;
+            grid-template-columns: repeat(4, 1fr);
             gap: 15px;
             margin: 10px 0;
             max-width: 100%;
         }
 
+        .controls-extended.show {
+            display: grid;
+        }
+
         .volume-control {
-            grid-column: span 4;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
             margin-top: 10px;
+        }
+
+        .more-controls-btn {
+            background: rgba(188, 19, 254, 0.2);
+            border: 2px solid #bc13fe;
+            color: #fff;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            margin: 10px auto;
+            display: block;
+            width: fit-content;
+        }
+
+        .more-controls-btn:hover {
+            background: rgba(188, 19, 254, 0.4);
+            transform: scale(1.05);
         }
 
         .control-button {
@@ -343,66 +367,59 @@
             border: none;
         }
 
-        /* Samsung Z Fold3 folded position - horizontal layout */
+        /* Samsung Z Fold3 landscape optimizations */
         @media (max-width: 768px) and (orientation: landscape) {
             body {
-                padding: 5px;
-                flex-direction: row;
-                gap: 15px;
+                padding: 8px;
             }
 
             .banner {
-                margin-bottom: 0;
-                margin-right: 15px;
-                flex-shrink: 0;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                min-width: 200px;
+                margin-bottom: 8px;
             }
 
             .neon-text {
                 font-size: 1.8em;
                 margin: 0;
-                writing-mode: horizontal-tb;
             }
 
             .player {
-                width: auto;
-                flex: 1;
-                padding: 10px;
-                max-width: none;
-                height: fit-content;
-                max-height: 90vh;
+                padding: 15px;
+                max-height: 85vh;
                 overflow: hidden;
             }
 
             .progress {
-                margin: 10px 0;
-            }
-
-            .controls {
-                grid-template-columns: repeat(6, 1fr);
-                gap: 8px;
                 margin: 8px 0;
             }
 
-            .controls-row-2 {
-                display: none; /* Hide secondary controls to save space */
+            .controls {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 10px;
+                margin: 10px 0;
             }
 
             .control-button {
-                width: 35px;
-                height: 35px;
+                width: 38px;
+                height: 38px;
+                font-size: 0.85em;
+                min-width: 38px;
+                min-height: 38px;
+            }
+
+            .more-controls-btn {
+                padding: 6px 12px;
                 font-size: 0.8em;
-                min-width: 35px;
-                min-height: 35px;
+                margin: 8px auto;
+            }
+
+            .controls-extended {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 10px;
+                margin: 8px 0;
             }
 
             .volume-control {
-                grid-column: span 6;
-                margin-top: 5px;
+                margin-top: 8px;
                 gap: 8px;
             }
 
@@ -542,7 +559,7 @@
             <div class="progress-bar" id="progress-bar"></div>
         </div>
 
-        <!-- Main playback controls (6 buttons for Z Fold3 landscape) -->
+        <!-- Essential controls only -->
         <div class="controls">
             <button class="control-button" id="prev-button" title="Previous">
                 <i class="fas fa-backward"></i>
@@ -559,28 +576,29 @@
             <button class="control-button" id="favorite-button" title="Toggle Favorite">
                 <i class="far fa-heart"></i>
             </button>
-            <button class="control-button" id="show-tracks-button" title="Show All Tracks">
-                <i class="fas fa-music"></i>
-            </button>
         </div>
 
-        <!-- Secondary controls (hidden on Z Fold3 landscape) -->
-        <div class="controls-row-2">
+        <!-- More controls button -->
+        <button class="more-controls-btn" id="more-controls-btn">
+            <i class="fas fa-chevron-down"></i> More Controls
+        </button>
+
+        <!-- Extended controls (hidden by default) -->
+        <div class="controls-extended" id="controls-extended">
             <button class="control-button" id="stop-button" title="Stop">
                 <i class="fas fa-stop"></i>
+            </button>
+            <button class="control-button" id="show-tracks-button" title="Show All Tracks">
+                <i class="fas fa-music"></i>
             </button>
             <button class="control-button" id="favorites-list-button" title="Show Favorites">
                 <i class="fas fa-list"></i>
             </button>
-            <button class="control-button" id="version-button" title="Show Version">
-                <i class="fas fa-info-circle"></i>
-            </button>
-        </div>
-
-        <!-- Tertiary controls (hidden on Z Fold3 landscape) -->
-        <div class="controls-row-2">
             <button class="control-button" id="play-favorites-button" title="Play Favorites Only">
                 <i class="fas fa-star"></i>
+            </button>
+            <button class="control-button" id="version-button" title="Show Version">
+                <i class="fas fa-info-circle"></i>
             </button>
         </div>
 

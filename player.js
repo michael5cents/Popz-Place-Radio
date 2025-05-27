@@ -21,6 +21,8 @@ const tracksModal = document.getElementById('tracks-modal');
 const closeTracksButton = document.getElementById('close-tracks');
 const tracksList = document.getElementById('tracks-list');
 const versionButton = document.getElementById('version-button');
+const moreControlsBtn = document.getElementById('more-controls-btn');
+const controlsExtended = document.getElementById('controls-extended');
 
 // Track list and current track
 let tracks = [];
@@ -642,6 +644,19 @@ async function showVersionInfo() {
     }
 }
 
+// Toggle extended controls
+function toggleExtendedControls() {
+    const isVisible = controlsExtended.classList.contains('show');
+
+    if (isVisible) {
+        controlsExtended.classList.remove('show');
+        moreControlsBtn.innerHTML = '<i class="fas fa-chevron-down"></i> More Controls';
+    } else {
+        controlsExtended.classList.add('show');
+        moreControlsBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Less Controls';
+    }
+}
+
 // Event listeners
 playButton.addEventListener('click', togglePlay);
 prevButton.addEventListener('click', playPrev);
@@ -660,6 +675,7 @@ volumeSlider.addEventListener('input', handleVolumeChange);
 showTracksButton.addEventListener('click', showAllTracks);
 closeTracksButton.addEventListener('click', () => tracksModal.style.display = 'none');
 versionButton.addEventListener('click', showVersionInfo);
+moreControlsBtn.addEventListener('click', toggleExtendedControls);
 
 // Save volume setting
 volumeSlider.addEventListener('change', () => {
