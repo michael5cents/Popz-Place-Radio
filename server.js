@@ -10,17 +10,25 @@ dotenv.config();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Disable caching for development
+app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+});
+
 // Azure config
 const connectionString = process.env.VITE_AZURE_STORAGE_CONNECTION_STRING;
 const containerName = process.env.VITE_AZURE_STORAGE_CONTAINER_NAME;
 const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
 
-// Serve static files from dist directory
-app.use(express.static(join(__dirname, 'dist')));
+// Serve static files from root directory (for development)
+app.use(express.static(__dirname));
 
 // Serve index.html for all routes except /api
 app.get(/^(?!\/api\/).+/, (req, res) => {
-    res.sendFile(join(__dirname, 'dist', 'index.html'));
+    res.sendFile(join(__dirname, 'index.html'));
 });
 
 // Get SAS URL for a specific file
