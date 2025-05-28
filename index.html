@@ -8,7 +8,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#bc13fe">
-    <meta name="screen-orientation" content="landscape">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -385,7 +384,7 @@
             border: none;
         }
 
-        /* Samsung Z Fold3 folded position - perfect fit */
+        /* Samsung Z Fold3 folded position - landscape optimized */
         @media (max-width: 768px) and (orientation: landscape) {
             body {
                 padding: 5px;
@@ -460,55 +459,64 @@
             }
         }
 
-        /* Samsung Z Fold3 portrait fallback */
+        /* Samsung Z Fold3 portrait mode */
         @media (max-width: 768px) and (orientation: portrait) {
             .neon-text {
-                font-size: 2.2em;
+                font-size: 2.0em;
                 margin-bottom: 10px;
             }
 
             .banner {
-                margin-bottom: 20px;
+                margin-bottom: 15px;
             }
 
             .player {
                 width: 98%;
                 padding: 15px;
                 max-width: none;
+                max-height: 90vh;
+                overflow: hidden;
             }
 
             .controls {
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(5, 1fr);
                 gap: 10px;
-                margin: 15px 0 10px 0;
+                margin: 12px 0;
             }
 
-            .controls-row-2 {
-                grid-template-columns: repeat(3, 1fr);
+            .controls-extended {
+                grid-template-columns: repeat(5, 1fr);
                 gap: 10px;
-                margin: 5px 0;
+                margin: 8px 0;
             }
 
             .control-button {
-                width: 40px;
-                height: 40px;
+                width: 38px;
+                height: 38px;
                 font-size: 0.85em;
-                min-width: 40px;
-                min-height: 40px;
+                min-width: 38px;
+                min-height: 38px;
+            }
+
+            .more-controls-btn {
+                padding: 5px 12px;
+                font-size: 0.8em;
+                margin: 8px auto;
             }
 
             .volume-control {
-                grid-column: span 4;
-                margin-top: 5px;
+                margin-top: 8px;
+                gap: 8px;
             }
 
             .volume-slider-container {
-                width: 120px;
+                width: 110px;
             }
 
             #status {
-                font-size: 0.9em;
-                margin-top: 10px;
+                font-size: 0.85em;
+                margin-top: 8px;
+                text-align: center;
             }
         }
 
