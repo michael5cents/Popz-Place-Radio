@@ -542,28 +542,7 @@
             }
         }
 
-        /* Force landscape orientation */
-        @media (orientation: portrait) and (max-width: 768px) {
-            body::before {
-                content: "Please rotate your device to landscape mode for the best experience";
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: rgba(0, 0, 0, 0.9);
-                color: white;
-                padding: 20px;
-                border-radius: 10px;
-                text-align: center;
-                z-index: 9999;
-                font-size: 1.1em;
-            }
 
-            .banner, .player {
-                filter: blur(3px);
-                pointer-events: none;
-            }
-        }
 
         /* Prevent text selection on mobile */
         .player, .controls, .control-button {
