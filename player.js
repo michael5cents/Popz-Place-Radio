@@ -38,6 +38,12 @@ let shuffleHistory = [];
 let maxRetries = 3;
 let currentRetries = 0;
 
+// Audio buffering and stall handling
+let bufferCheckInterval = null;
+let lastPlayPosition = 0;
+let stallCount = 0;
+let isBuffering = false;
+
 // Wake Lock API support for mobile devices
 async function requestWakeLock() {
     try {
@@ -92,6 +98,102 @@ function handleVisibilityChange() {
         // Re-acquire wake lock if needed
         if (isPlaying) {
             requestWakeLock();
+        }
+    }
+}
+
+// Audio buffering and stall detection
+function startBufferMonitoring() {
+    if (bufferCheckInterval) {
+        clearInterval(bufferCheckInterval);
+    }
+
+    lastPlayPosition = 0;
+    stallCount = 0;
+
+    bufferCheckInterval = setInterval(() => {
+        if (!isPlaying || !player.src) {
+            return;
+        }
+
+        const currentPosition = player.currentTime;
+
+        // Check if audio is stalled (position hasn't changed)
+        if (currentPosition === lastPlayPosition && !player.paused) {
+            stallCount++;
+
+            if (stallCount >= 2) { // 2 seconds of stalling
+                console.log('Audio stalled detected, attempting recovery');
+                handleAudioStall();
+            } else {
+                if (!isBuffering) {
+                    isBuffering = true;
+                    status.textContent = `${currentTrack} - Buffering...`;
+                }
+            }
+        } else {
+            // Audio is progressing normally
+            stallCount = 0;
+            if (isBuffering) {
+                isBuffering = false;
+                status.textContent = currentTrack;
+            }
+        }
+
+        lastPlayPosition = currentPosition;
+    }, 1000); // Check every second
+}
+
+function stopBufferMonitoring() {
+    if (bufferCheckInterval) {
+        clearInterval(bufferCheckInterval);
+        bufferCheckInterval = null;
+    }
+    isBuffering = false;
+    stallCount = 0;
+}
+
+// Handle audio stall recovery
+async function handleAudioStall() {
+    console.log('Attempting to recover from audio stall');
+
+    try {
+        const currentTime = player.currentTime;
+
+        // Try to resume playback
+        await player.play();
+
+        // If that doesn't work, try seeking slightly forward
+        if (player.currentTime === currentTime) {
+            player.currentTime = Math.min(currentTime + 0.1, player.duration - 0.1);
+            await player.play();
+        }
+
+        stallCount = 0;
+        isBuffering = false;
+        status.textContent = currentTrack;
+        console.log('Audio stall recovery successful');
+
+    } catch (error) {
+        console.error('Audio stall recovery failed:', error);
+
+        // If recovery fails, try reloading the track
+        if (currentTrack) {
+            console.log('Attempting track reload for stall recovery');
+            const savedTime = player.currentTime;
+
+            try {
+                await playTrack(currentTrack);
+                // Try to resume from where we left off
+                if (savedTime > 0 && savedTime < player.duration) {
+                    player.currentTime = savedTime;
+                }
+            } catch (reloadError) {
+                console.error('Track reload failed:', reloadError);
+                status.textContent = `Playback error - ${reloadError.message}`;
+                isPlaying = false;
+                updatePlayIcon();
+            }
         }
     }
 }
@@ -175,32 +277,74 @@ async function playTrack(filename, retryCount = 0) {
 
         if (data.error) throw new Error(data.error);
 
-        // Set up the audio source
-        player.src = data.url;
+        // Stop any existing buffer monitoring
+        stopBufferMonitoring();
 
-        // Wait for the audio to be ready
+        // Set up the audio source with better buffering
+        player.src = data.url;
+        player.preload = 'auto'; // Preload the entire audio file
+        player.crossOrigin = 'anonymous'; // Handle CORS for Azure
+
+        // Wait for the audio to be ready with enhanced event handling
         await new Promise((resolve, reject) => {
             const onCanPlay = () => {
-                player.removeEventListener('canplay', onCanPlay);
-                player.removeEventListener('error', onError);
+                console.log('Audio can play - sufficient data loaded');
+                cleanup();
+                resolve();
+            };
+
+            const onCanPlayThrough = () => {
+                console.log('Audio can play through - fully buffered');
+                cleanup();
                 resolve();
             };
 
             const onError = (e) => {
+                console.error('Audio error event:', e);
+                cleanup();
+                reject(new Error(`Audio load error: ${e.message || player.error?.message || 'Unknown error'}`));
+            };
+
+            const onStalled = () => {
+                console.log('Audio stalled during loading');
+                status.textContent = `${filename} - Loading stalled, retrying...`;
+            };
+
+            const onWaiting = () => {
+                console.log('Audio waiting for more data');
+                status.textContent = `${filename} - Buffering...`;
+            };
+
+            const onProgress = () => {
+                if (player.buffered.length > 0) {
+                    const buffered = (player.buffered.end(0) / player.duration) * 100;
+                    if (buffered > 10) { // If we have at least 10% buffered
+                        console.log(`Audio buffered: ${buffered.toFixed(1)}%`);
+                    }
+                }
+            };
+
+            const cleanup = () => {
                 player.removeEventListener('canplay', onCanPlay);
+                player.removeEventListener('canplaythrough', onCanPlayThrough);
                 player.removeEventListener('error', onError);
-                reject(new Error(`Audio load error: ${e.message || 'Unknown error'}`));
+                player.removeEventListener('stalled', onStalled);
+                player.removeEventListener('waiting', onWaiting);
+                player.removeEventListener('progress', onProgress);
             };
 
             player.addEventListener('canplay', onCanPlay);
+            player.addEventListener('canplaythrough', onCanPlayThrough);
             player.addEventListener('error', onError);
+            player.addEventListener('stalled', onStalled);
+            player.addEventListener('waiting', onWaiting);
+            player.addEventListener('progress', onProgress);
 
-            // Timeout after 10 seconds
+            // Timeout after 15 seconds (increased for better mobile support)
             setTimeout(() => {
-                player.removeEventListener('canplay', onCanPlay);
-                player.removeEventListener('error', onError);
-                reject(new Error('Audio load timeout'));
-            }, 10000);
+                cleanup();
+                reject(new Error('Audio load timeout - check your connection'));
+            }, 15000);
         });
 
         // Play the audio
@@ -213,6 +357,9 @@ async function playTrack(filename, retryCount = 0) {
         updatePlayIcon();
         updateFavoriteIcon();
         status.textContent = filename;
+
+        // Start buffer monitoring for stall detection
+        startBufferMonitoring();
 
         // Request wake lock for mobile
         if (isPlaying) {
@@ -475,6 +622,9 @@ function stopPlayback() {
     updatePlayIcon();
     status.textContent = 'Stopped';
 
+    // Stop buffer monitoring
+    stopBufferMonitoring();
+
     // Release wake lock when stopping
     releaseWakeLock();
 }
@@ -691,53 +841,63 @@ window.addEventListener('click', (e) => {
     }
 });
 
-// Enhanced audio event handlers
-player.addEventListener('ended', () => {
-    console.log('Track ended, playing next');
-    playNext();
-});
-
-player.addEventListener('timeupdate', updateProgress);
-
+// Enhanced audio event handlers for better buffering
 player.addEventListener('error', (e) => {
     console.error('Audio error:', e);
     status.textContent = 'Error playing audio';
     isPlaying = false;
     updatePlayIcon();
+    stopBufferMonitoring();
     releaseWakeLock();
 });
 
 player.addEventListener('pause', () => {
     console.log('Audio paused');
-    if (isPlaying) {
-        // Only update if we think we should be playing (not user-initiated pause)
-        isPlaying = false;
-        updatePlayIcon();
-    }
+    stopBufferMonitoring();
 });
 
 player.addEventListener('play', () => {
     console.log('Audio playing');
-    isPlaying = true;
-    updatePlayIcon();
+    startBufferMonitoring();
     requestWakeLock();
 });
 
-// Handle audio interruptions (calls, notifications, etc.)
+// Handle audio interruptions and buffering events
 player.addEventListener('stalled', () => {
-    console.log('Audio stalled');
-    status.textContent = 'Audio stalled - buffering...';
+    console.log('Audio stalled during playback');
+    if (isPlaying && !isBuffering) {
+        isBuffering = true;
+        status.textContent = `${currentTrack} - Connection stalled...`;
+    }
 });
 
 player.addEventListener('waiting', () => {
-    console.log('Audio waiting');
-    status.textContent = 'Buffering...';
+    console.log('Audio waiting for data');
+    if (isPlaying && !isBuffering) {
+        isBuffering = true;
+        status.textContent = `${currentTrack} - Buffering...`;
+    }
 });
 
 player.addEventListener('canplaythrough', () => {
-    console.log('Audio can play through');
-    if (currentTrack && status.textContent.includes('Buffering')) {
+    console.log('Audio can play through - buffering complete');
+    if (isBuffering) {
+        isBuffering = false;
         status.textContent = currentTrack;
+    }
+});
+
+player.addEventListener('loadstart', () => {
+    console.log('Audio load started');
+});
+
+player.addEventListener('progress', () => {
+    // Show buffering progress for large files
+    if (player.buffered.length > 0 && player.duration) {
+        const buffered = (player.buffered.end(0) / player.duration) * 100;
+        if (buffered < 100 && isPlaying) {
+            console.log(`Buffered: ${buffered.toFixed(1)}%`);
+        }
     }
 });
 
@@ -755,34 +915,15 @@ window.addEventListener('focus', () => {
 });
 
 window.addEventListener('blur', () => {
-    console.log('Window blurred');
+    console.log('Window blurred - maintaining playback');
     // Don't pause on blur - let it continue playing
 });
 
-// Force landscape orientation on mobile
-function forceLandscapeOrientation() {
-    if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(err => {
-            console.log('Could not lock orientation:', err);
-        });
-    }
-}
-
-// Check if device supports orientation lock and apply it
-if ('orientation' in screen) {
-    forceLandscapeOrientation();
-}
-
-// Handle orientation changes
+// Handle orientation changes (no forced orientation)
 window.addEventListener('orientationchange', () => {
     setTimeout(() => {
-        if (window.innerHeight > window.innerWidth && window.innerWidth < 768) {
-            // Portrait mode on mobile - show rotation message
-            console.log('Portrait mode detected - encouraging landscape');
-        } else {
-            // Landscape mode - good to go
-            console.log('Landscape mode - optimal layout');
-        }
+        console.log('Orientation changed - layout will adapt automatically');
+        // Just log the change, no forced orientation
     }, 100);
 });
 
