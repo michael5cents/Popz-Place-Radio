@@ -280,71 +280,32 @@ async function playTrack(filename, retryCount = 0) {
         // Stop any existing buffer monitoring
         stopBufferMonitoring();
 
-        // Set up the audio source with better buffering
+        // Set up the audio source (keep it simple)
         player.src = data.url;
-        player.preload = 'auto'; // Preload the entire audio file
-        player.crossOrigin = 'anonymous'; // Handle CORS for Azure
 
-        // Wait for the audio to be ready with enhanced event handling
+        // Wait for the audio to be ready (simplified)
         await new Promise((resolve, reject) => {
             const onCanPlay = () => {
-                console.log('Audio can play - sufficient data loaded');
-                cleanup();
-                resolve();
-            };
-
-            const onCanPlayThrough = () => {
-                console.log('Audio can play through - fully buffered');
-                cleanup();
+                player.removeEventListener('canplay', onCanPlay);
+                player.removeEventListener('error', onError);
                 resolve();
             };
 
             const onError = (e) => {
-                console.error('Audio error event:', e);
-                cleanup();
-                reject(new Error(`Audio load error: ${e.message || player.error?.message || 'Unknown error'}`));
-            };
-
-            const onStalled = () => {
-                console.log('Audio stalled during loading');
-                status.textContent = `${filename} - Loading stalled, retrying...`;
-            };
-
-            const onWaiting = () => {
-                console.log('Audio waiting for more data');
-                status.textContent = `${filename} - Buffering...`;
-            };
-
-            const onProgress = () => {
-                if (player.buffered.length > 0) {
-                    const buffered = (player.buffered.end(0) / player.duration) * 100;
-                    if (buffered > 10) { // If we have at least 10% buffered
-                        console.log(`Audio buffered: ${buffered.toFixed(1)}%`);
-                    }
-                }
-            };
-
-            const cleanup = () => {
                 player.removeEventListener('canplay', onCanPlay);
-                player.removeEventListener('canplaythrough', onCanPlayThrough);
                 player.removeEventListener('error', onError);
-                player.removeEventListener('stalled', onStalled);
-                player.removeEventListener('waiting', onWaiting);
-                player.removeEventListener('progress', onProgress);
+                reject(new Error(`Audio load error: ${e.message || 'Unknown error'}`));
             };
 
             player.addEventListener('canplay', onCanPlay);
-            player.addEventListener('canplaythrough', onCanPlayThrough);
             player.addEventListener('error', onError);
-            player.addEventListener('stalled', onStalled);
-            player.addEventListener('waiting', onWaiting);
-            player.addEventListener('progress', onProgress);
 
-            // Timeout after 15 seconds (increased for better mobile support)
+            // Timeout after 10 seconds
             setTimeout(() => {
-                cleanup();
-                reject(new Error('Audio load timeout - check your connection'));
-            }, 15000);
+                player.removeEventListener('canplay', onCanPlay);
+                player.removeEventListener('error', onError);
+                reject(new Error('Audio load timeout'));
+            }, 10000);
         });
 
         // Play the audio
