@@ -2,15 +2,16 @@
 
 A professional web-based music player optimized for Samsung Z Fold3 that streams music from Azure Blob Storage. Features a sleek neon-themed interface with essential controls and expandable functionality.
 
-## 🌟 Current Version: 1.2.0
+## 🌟 Current Version: 1.3.0
 
 **Live App**: https://popz-place-radio.azurewebsites.net
 **GitHub**: https://github.com/michael5cents/Popz-Place-Radio
 
-### 🆕 Latest Updates (v1.2.0)
-- **Mobile Performance Optimization**: Server-side shuffle for large music libraries
-- **Reduced Data Usage**: Optimized for 800+ track collections on mobile devices
-- **Enhanced Deployment**: Multiple deployment methods including direct Azure git push
+### 🆕 Latest Updates (v1.3.0)
+- **Major Performance Optimization**: Eliminated unnecessary track list downloads
+- **99% Data Reduction**: Regular play/next/prev now fetch only 1 track instead of 800+
+- **Server-Side Navigation**: New endpoints for sequential and shuffle playback
+- **Mobile-First Design**: Perfect for cellular data and large music collections
 
 ## ✨ Key Features
 

@@ -2,6 +2,30 @@
 
 All notable changes to Popz Place Radio will be documented in this file.
 
+## [1.3.0] - 2025-01-30
+
+### Added
+- **Server-Side Navigation Endpoints**: New `/api/first`, `/api/next/:track`, and `/api/prev/:track` endpoints for efficient sequential playback
+- **Optimized Regular Playback**: Play/next/previous buttons now fetch only single track names instead of entire library
+- **Smart Data Usage**: Eliminated unnecessary track list downloads for normal playback operations
+
+### Fixed
+- **Mobile Data Efficiency**: Reduced data usage by ~99% for regular play/next/previous operations
+- **Large Library Performance**: Optimized for music collections with 800+ tracks on mobile devices
+- **Cellular Network Optimization**: Perfect performance on limited data connections
+
+### Changed
+- **Play Button Logic**: Now uses `/api/first` endpoint instead of loading entire track list
+- **Next/Previous Logic**: Uses server-side endpoints for sequential navigation
+- **Show Tracks Button**: Only feature that loads full track list (when user specifically wants to browse)
+
+### Technical Changes
+- Added `/api/first` endpoint for getting first track without full library download
+- Added `/api/next/:currentTrack` endpoint for sequential next track selection
+- Added `/api/prev/:currentTrack` endpoint for sequential previous track selection
+- Refactored client-side playback logic to use server-side navigation
+- Maintained shuffle optimization from v1.2.0 while adding sequential optimizations
+
 ## [1.2.0] - 2025-01-30
 
 ### Added
