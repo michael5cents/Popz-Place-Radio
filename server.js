@@ -52,6 +52,32 @@ app.get('/api/getsasurl/:filename', async (req, res) => {
     }
 });
 
+// Get a random track for shuffle mode
+app.get('/api/shuffle', async (req, res) => {
+    try {
+        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const tracks = [];
+
+        for await (const blob of containerClient.listBlobsFlat()) {
+            if (blob.name.match(/\.(mp3|flac|wav|m4a)$/i)) {
+                tracks.push(blob.name);
+            }
+        }
+
+        if (tracks.length === 0) {
+            return res.status(404).json({ error: 'No tracks found to shuffle.' });
+        }
+
+        const randomIndex = Math.floor(Math.random() * tracks.length);
+        const randomTrack = tracks[randomIndex];
+
+        res.json({ track: randomTrack });
+    } catch (error) {
+        console.error('Error getting random track:', error);
+        res.status(500).json({ error: 'Failed to get random track' });
+    }
+});
+
 // Get list of all music files
 app.get('/api/tracks', async (req, res) => {
     try {

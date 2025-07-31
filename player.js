@@ -34,7 +34,6 @@ let shuffleMode = false;
 
 // Mobile and wake lock support
 let wakeLock = null;
-let shuffleHistory = [];
 let maxRetries = 3;
 let currentRetries = 0;
 
@@ -210,56 +209,6 @@ function updatePlayFavoritesIcon() {
     icon.style.color = playingFavorites ? '#FFD700' : '#fff';
 }
 
-// Shuffle array
-function shuffle(array) {
-    const newArray = [...array];
-    for (let i = newArray.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-    }
-    return newArray;
-}
-
-// Get next shuffle track with history to avoid repeats
-function getNextShuffleTrack() {
-    if (tracks.length === 0) return null;
-
-    // If we've played all tracks, reset history
-    if (shuffleHistory.length >= tracks.length) {
-        shuffleHistory = [];
-    }
-
-    // Get tracks not in recent history
-    let availableTracks = tracks.filter(track =>
-        !shuffleHistory.includes(track) && track !== currentTrack
-    );
-
-    // If no available tracks (shouldn't happen), use all tracks except current
-    if (availableTracks.length === 0) {
-        availableTracks = tracks.filter(track => track !== currentTrack);
-        shuffleHistory = []; // Reset history
-    }
-
-    // If still no tracks, just use the first track
-    if (availableTracks.length === 0) {
-        return tracks[0];
-    }
-
-    // Pick random track from available
-    const randomIndex = Math.floor(Math.random() * availableTracks.length);
-    const selectedTrack = availableTracks[randomIndex];
-
-    // Add to history
-    shuffleHistory.push(selectedTrack);
-
-    // Keep history manageable (max 50% of tracks)
-    const maxHistory = Math.max(1, Math.floor(tracks.length / 2));
-    if (shuffleHistory.length > maxHistory) {
-        shuffleHistory = shuffleHistory.slice(-maxHistory);
-    }
-
-    return selectedTrack;
-}
 
 // Update play button icon
 function updatePlayIcon() {
@@ -437,22 +386,32 @@ async function togglePlayFavorites() {
 // Play/Pause toggle
 async function togglePlay() {
     try {
-        if (!currentTrack) {
-            // Start playing if nothing is playing
-            await loadTracks(playingFavorites);
-            await playTrack(tracks[0]);
-        } else if (isPlaying) {
+        if (isPlaying) {
             // Pause current track
             player.pause();
             isPlaying = false;
             updatePlayIcon();
             status.textContent = '⏸️ ' + currentTrack;
         } else {
-            // Resume current track
-            await player.play();
-            isPlaying = true;
-            updatePlayIcon();
-            status.textContent = currentTrack;
+            // If a track is loaded, resume it
+            if (currentTrack) {
+                await player.play();
+                isPlaying = true;
+                updatePlayIcon();
+                status.textContent = currentTrack;
+            } else {
+                // Otherwise, start a new track
+                if (shuffleMode) {
+                    await playNext(); // playNext will fetch a random track
+                } else {
+                    await loadTracks(playingFavorites);
+                    if (tracks.length > 0) {
+                        await playTrack(tracks[0]);
+                    } else {
+                        status.textContent = 'No tracks available.';
+                    }
+                }
+            }
         }
     } catch (error) {
         status.textContent = 'Error: ' + error.message;
@@ -461,25 +420,28 @@ async function togglePlay() {
 
 // Play next track with improved error handling
 async function playNext() {
-    if (!tracks.length) {
-        console.log('No tracks available for playNext');
-        status.textContent = 'No tracks available';
-        return;
-    }
-
     try {
         let nextTrack;
 
         if (shuffleMode) {
-            nextTrack = getNextShuffleTrack();
-            if (!nextTrack) {
-                console.log('No shuffle track available, using first track');
-                nextTrack = tracks[0];
-            }
+            // Fetch a random track from the server
+            const response = await fetch('/api/shuffle');
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            nextTrack = data.track;
         } else {
+            // Standard sequential playback
+            if (!tracks.length) {
+                await loadTracks(playingFavorites);
+            }
             const currentIndex = tracks.indexOf(currentTrack);
             const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tracks.length;
             nextTrack = tracks[nextIndex];
+        }
+
+        if (!nextTrack) {
+            status.textContent = 'No next track found.';
+            return;
         }
 
         console.log(`Playing next track: ${nextTrack}`);
@@ -489,48 +451,35 @@ async function playNext() {
     } catch (error) {
         console.error('Error in playNext:', error);
         status.textContent = `Error playing next track: ${error.message}`;
-
-        // If we're in shuffle mode and there was an error, try another track
-        if (shuffleMode && tracks.length > 1) {
-            console.log('Shuffle mode: trying alternative track after error');
-            setTimeout(() => {
-                const alternativeTrack = getNextShuffleTrack();
-                if (alternativeTrack && alternativeTrack !== currentTrack) {
-                    playTrack(alternativeTrack).catch(err => {
-                        console.error('Alternative track also failed:', err);
-                        isPlaying = false;
-                        updatePlayIcon();
-                    });
-                }
-            }, 2000);
-        } else {
-            isPlaying = false;
-            updatePlayIcon();
-        }
+        isPlaying = false;
+        updatePlayIcon();
     }
 }
 
 // Play previous track with improved error handling
 async function playPrev() {
-    if (!tracks.length) {
-        console.log('No tracks available for playPrev');
-        status.textContent = 'No tracks available';
-        return;
-    }
-
     try {
         let prevTrack;
 
         if (shuffleMode) {
-            prevTrack = getNextShuffleTrack(); // In shuffle, prev is just another random track
-            if (!prevTrack) {
-                console.log('No shuffle track available, using last track');
-                prevTrack = tracks[tracks.length - 1];
-            }
+            // In shuffle mode, "previous" is just another random track
+            const response = await fetch('/api/shuffle');
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            prevTrack = data.track;
         } else {
+            // Standard sequential playback
+            if (!tracks.length) {
+                await loadTracks(playingFavorites);
+            }
             const currentIndex = tracks.indexOf(currentTrack);
             const prevIndex = currentIndex === -1 ? tracks.length - 1 : (currentIndex - 1 + tracks.length) % tracks.length;
             prevTrack = tracks[prevIndex];
+        }
+
+        if (!prevTrack) {
+            status.textContent = 'No previous track found.';
+            return;
         }
 
         console.log(`Playing previous track: ${prevTrack}`);
@@ -545,34 +494,12 @@ async function playPrev() {
     }
 }
 
-// Shuffle playlist with improved logic
-async function shufflePlaylist() {
-    if (!tracks.length) {
-        status.textContent = 'No tracks to shuffle';
-        return;
-    }
-
+// Toggle shuffle mode
+function toggleShuffle() {
     shuffleMode = !shuffleMode;
     updateShuffleIcon();
-
-    if (shuffleMode) {
-        // Reset shuffle history when enabling shuffle
-        shuffleHistory = [];
-        status.textContent = 'Shuffle mode enabled';
-
-        // If currently playing, add current track to history
-        if (currentTrack) {
-            shuffleHistory.push(currentTrack);
-        }
-
-        console.log('Shuffle mode enabled');
-    } else {
-        // Restore original order by reloading tracks
-        shuffleHistory = [];
-        await loadTracks(playingFavorites);
-        status.textContent = 'Shuffle mode disabled';
-        console.log('Shuffle mode disabled');
-    }
+    status.textContent = shuffleMode ? 'Shuffle mode enabled' : 'Shuffle mode disabled';
+    console.log(`Shuffle mode ${shuffleMode ? 'enabled' : 'disabled'}`);
 }
 
 // Stop playback
@@ -772,7 +699,7 @@ function toggleExtendedControls() {
 playButton.addEventListener('click', togglePlay);
 prevButton.addEventListener('click', playPrev);
 nextButton.addEventListener('click', playNext);
-shuffleButton.addEventListener('click', shufflePlaylist);
+shuffleButton.addEventListener('click', toggleShuffle);
 stopButton.addEventListener('click', stopPlayback);
 favoriteButton.addEventListener('click', toggleFavorite);
 favoritesListButton.addEventListener('click', showFavorites);
@@ -887,4 +814,3 @@ window.addEventListener('orientationchange', () => {
         // Just log the change, no forced orientation
     }, 100);
 });
-
