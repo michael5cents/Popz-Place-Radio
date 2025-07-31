@@ -78,6 +78,95 @@ app.get('/api/shuffle', async (req, res) => {
     }
 });
 
+// Get next track in sequence
+app.get('/api/next/:currentTrack', async (req, res) => {
+    try {
+        const currentTrack = decodeURIComponent(req.params.currentTrack);
+        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const tracks = [];
+
+        for await (const blob of containerClient.listBlobsFlat()) {
+            if (blob.name.match(/\.(mp3|flac|wav|m4a)$/i)) {
+                tracks.push(blob.name);
+            }
+        }
+
+        if (tracks.length === 0) {
+            return res.status(404).json({ error: 'No tracks found.' });
+        }
+
+        // Sort tracks for consistent ordering
+        tracks.sort();
+
+        const currentIndex = tracks.indexOf(currentTrack);
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tracks.length;
+        const nextTrack = tracks[nextIndex];
+
+        res.json({ track: nextTrack });
+    } catch (error) {
+        console.error('Error getting next track:', error);
+        res.status(500).json({ error: 'Failed to get next track' });
+    }
+});
+
+// Get previous track in sequence
+app.get('/api/prev/:currentTrack', async (req, res) => {
+    try {
+        const currentTrack = decodeURIComponent(req.params.currentTrack);
+        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const tracks = [];
+
+        for await (const blob of containerClient.listBlobsFlat()) {
+            if (blob.name.match(/\.(mp3|flac|wav|m4a)$/i)) {
+                tracks.push(blob.name);
+            }
+        }
+
+        if (tracks.length === 0) {
+            return res.status(404).json({ error: 'No tracks found.' });
+        }
+
+        // Sort tracks for consistent ordering
+        tracks.sort();
+
+        const currentIndex = tracks.indexOf(currentTrack);
+        const prevIndex = currentIndex === -1 ? tracks.length - 1 : (currentIndex - 1 + tracks.length) % tracks.length;
+        const prevTrack = tracks[prevIndex];
+
+        res.json({ track: prevTrack });
+    } catch (error) {
+        console.error('Error getting previous track:', error);
+        res.status(500).json({ error: 'Failed to get previous track' });
+    }
+});
+
+// Get first track (for starting playback)
+app.get('/api/first', async (req, res) => {
+    try {
+        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const tracks = [];
+
+        for await (const blob of containerClient.listBlobsFlat()) {
+            if (blob.name.match(/\.(mp3|flac|wav|m4a)$/i)) {
+                tracks.push(blob.name);
+            }
+        }
+
+        if (tracks.length === 0) {
+            return res.status(404).json({ error: 'No tracks found.' });
+        }
+
+        // Sort tracks for consistent ordering
+        tracks.sort();
+        const firstTrack = tracks[0];
+
+        res.json({ track: firstTrack });
+    } catch (error) {
+        console.error('Error getting first track:', error);
+        res.status(500).json({ error: 'Failed to get first track' });
+    }
+});
+
 // Get list of all music files
 app.get('/api/tracks', async (req, res) => {
     try {

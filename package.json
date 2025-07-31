@@ -1,6 +1,6 @@
 {
   "name": "popz-place-radio",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A web-based music player connected to Azure Storage",
   "main": "script.js",
   "type": "module",

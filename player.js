@@ -404,12 +404,11 @@ async function togglePlay() {
                 if (shuffleMode) {
                     await playNext(); // playNext will fetch a random track
                 } else {
-                    await loadTracks(playingFavorites);
-                    if (tracks.length > 0) {
-                        await playTrack(tracks[0]);
-                    } else {
-                        status.textContent = 'No tracks available.';
-                    }
+                    // Get first track from server without loading entire list
+                    const response = await fetch('/api/first');
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    await playTrack(data.track);
                 }
             }
         }
@@ -430,13 +429,20 @@ async function playNext() {
             if (data.error) throw new Error(data.error);
             nextTrack = data.track;
         } else {
-            // Standard sequential playback
-            if (!tracks.length) {
-                await loadTracks(playingFavorites);
+            // Get next track from server without loading entire list
+            if (!currentTrack) {
+                // If no current track, get first track
+                const response = await fetch('/api/first');
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                nextTrack = data.track;
+            } else {
+                // Get next track in sequence
+                const response = await fetch(`/api/next/${encodeURIComponent(currentTrack)}`);
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                nextTrack = data.track;
             }
-            const currentIndex = tracks.indexOf(currentTrack);
-            const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tracks.length;
-            nextTrack = tracks[nextIndex];
         }
 
         if (!nextTrack) {
@@ -468,13 +474,20 @@ async function playPrev() {
             if (data.error) throw new Error(data.error);
             prevTrack = data.track;
         } else {
-            // Standard sequential playback
-            if (!tracks.length) {
-                await loadTracks(playingFavorites);
+            // Get previous track from server without loading entire list
+            if (!currentTrack) {
+                // If no current track, get first track
+                const response = await fetch('/api/first');
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                prevTrack = data.track;
+            } else {
+                // Get previous track in sequence
+                const response = await fetch(`/api/prev/${encodeURIComponent(currentTrack)}`);
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                prevTrack = data.track;
             }
-            const currentIndex = tracks.indexOf(currentTrack);
-            const prevIndex = currentIndex === -1 ? tracks.length - 1 : (currentIndex - 1 + tracks.length) % tracks.length;
-            prevTrack = tracks[prevIndex];
         }
 
         if (!prevTrack) {
