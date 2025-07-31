@@ -2,6 +2,30 @@
 
 All notable changes to Popz Place Radio will be documented in this file.
 
+## [1.2.0] - 2025-01-30
+
+### Added
+- **Server-Side Shuffle Optimization**: New `/api/shuffle` endpoint handles randomization on the server to improve mobile performance
+- **GitHub Actions Workflow**: Added automated CI/CD pipeline for Azure deployment
+- **Mobile Performance Improvements**: Optimized for large music libraries (800+ tracks) on mobile devices
+
+### Fixed
+- **Mobile Buffering Issues**: Resolved buffering and stalling problems on cellular networks by reducing client-side data processing
+- **Shuffle Performance**: Eliminated need to download entire track list for shuffle functionality
+- **Large Library Support**: Improved performance for music collections with hundreds of tracks
+
+### Changed
+- **Shuffle Logic**: Moved from client-side to server-side processing for better mobile performance
+- **Data Transfer**: Reduced mobile data usage by fetching one track at a time instead of entire playlist
+- **Deployment Method**: Added support for both GitHub Actions and direct Azure git deployment
+
+### Technical Changes
+- Added `/api/shuffle` endpoint in server.js for server-side track randomization
+- Refactored shuffle functionality in player.js to use server endpoint
+- Removed client-side shuffle history tracking and array shuffling
+- Updated package.json version to 1.2.0
+- Added GitHub Actions workflow file for automated deployment
+
 ## [1.1.0] - 2025-01-27
 
 ### Added

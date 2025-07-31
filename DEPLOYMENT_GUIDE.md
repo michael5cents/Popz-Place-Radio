@@ -90,19 +90,40 @@ ENABLE_ORYX_BUILD=true
 
 ## 🔄 CI/CD Setup
 
-### Method 1: GitHub Actions (Recommended)
+### Method 1: Direct Azure Git Deployment (Currently Used)
 
-#### 1. Azure Portal Setup
-1. Go to **App Service** → **Deployment Center**
-2. Select **GitHub** as source
-3. Authorize GitHub access
-4. Select repository: `michael5cents/Popz-Place-Radio`
-5. Select branch: `main`
-6. Choose **GitHub Actions** as build provider
-7. Click **Save**
+This is the deployment method currently configured and working for this project.
 
-#### 2. Workflow File
-Azure automatically creates `.github/workflows/main_popz-place-radio.yml`:
+#### 1. Azure Git Remote Setup
+The Azure git remote is already configured in this repository:
+```bash
+git remote -v
+# Should show:
+# azure: https://$popz-place-radio:...@popz-place-radio.scm.azurewebsites.net/popz-place-radio.git
+```
+
+#### 2. Deploy to Azure
+To deploy the latest changes directly to Azure:
+```bash
+# Deploy current branch to Azure master branch
+git push azure clean-branch:master
+
+# Or if on main branch:
+git push azure main:master
+```
+
+#### 3. Deployment Process
+Azure will automatically:
+- Detect Node.js application
+- Install dependencies with `npm install`
+- Run build process with `npm run build`
+- Deploy to production environment
+- Restart the application service
+
+### Method 2: GitHub Actions (Alternative)
+
+#### 1. Workflow File Setup
+The GitHub Actions workflow file is located at `.github/workflows/main_popz-place-radio.yml`:
 
 ```yaml
 name: Build and deploy Node.js app to Azure Web App
@@ -157,19 +178,29 @@ jobs:
         package: .
 ```
 
-### Method 2: Git Deployment
+#### 2. GitHub Actions Requirements
+**Note**: GitHub Actions deployment requires additional setup:
+- Azure publish profile must be added as a GitHub secret named `AZUREAPPSERVICE_PUBLISHPROFILE`
+- This method is configured but not currently active due to missing secrets
+
+#### 3. Workflow Triggers
+The workflow automatically triggers on:
+- Push to `main` branch
+- Manual workflow dispatch
+
+### Method 3: Azure CLI Deployment (Alternative)
 
 #### 1. Get Deployment Credentials
 ```bash
-# Get publish profile
+# Get publish profile (if needed for troubleshooting)
 az webapp deployment list-publishing-credentials \
   --name popz-place-radio \
   --resource-group popz-place-radio-rg
 ```
 
-#### 2. Add Azure Remote
+#### 2. Manual Azure Remote Setup (if needed)
 ```bash
-# Add Azure git remote
+# Add Azure git remote (already configured in this project)
 git remote add azure https://$popz-place-radio@popz-place-radio.scm.azurewebsites.net/popz-place-radio.git
 
 # Deploy to Azure
